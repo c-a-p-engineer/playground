@@ -132,10 +132,23 @@
         </select>
       </div>
       <div class="start-row">
-        <label for="select_weapon">武器種</label>
-        <select id="select_weapon">
+        <label for="select_weapon_primary">武器1</label>
+        <select id="select_weapon_primary">
           <option value="blade">ブレード</option>
           <option value="cannon">キャノン</option>
+          <option value="rail">レールガン</option>
+          <option value="pulse">パルス</option>
+          <option value="missile">ミサイル</option>
+        </select>
+      </div>
+      <div class="start-row">
+        <label for="select_weapon_secondary">武器2</label>
+        <select id="select_weapon_secondary">
+          <option value="cannon">キャノン</option>
+          <option value="blade">ブレード</option>
+          <option value="rail">レールガン</option>
+          <option value="pulse">パルス</option>
+          <option value="missile">ミサイル</option>
         </select>
       </div>
       <div class="start-row">
@@ -198,6 +211,14 @@
       heavy: { hp: 125, en: 90, speed: 230 }
     };
 
+    const WEAPON_TYPES = {
+      blade: "ブレード",
+      cannon: "キャノン",
+      rail: "レールガン",
+      pulse: "パルス",
+      missile: "ミサイル"
+    };
+
     const PERSONALITY_PRESETS = {
       balanced: { flee: 20, far: 20, mid: 50, near: 0, charge: 10 },
       coward: { flee: 55, far: 25, mid: 15, near: 0, charge: 5 },
@@ -222,7 +243,8 @@
     const uiEl = document.getElementById("ui");
     const startButton = document.getElementById("start_button");
     const mechSelect = document.getElementById("select_mech");
-    const weaponSelect = document.getElementById("select_weapon");
+    const weaponPrimarySelect = document.getElementById("select_weapon_primary");
+    const weaponSecondarySelect = document.getElementById("select_weapon_secondary");
     const personalitySelect = document.getElementById("select_personality");
 
     function applyPersonalityPreset(key) {
@@ -425,6 +447,10 @@
         this.debugEl = document.getElementById("debug");
       }
 
+      preload() {
+        this.load.image("robot", "https://labs.phaser.io/assets/sprites/robot.png");
+      }
+
       create() {
         this.gridGraphics = this.add.graphics();
         this.gridGraphics.setDepth(0);
@@ -443,17 +469,23 @@
           speed: this.settings.speed,
           lastHitAtMs: -999999
         };
+
+        this.robotSprite = this.add.image(this.robot.x, this.robot.y, "robot");
+        this.robotSprite.setDisplaySize(40, 40);
+        this.robotSprite.setDepth(2);
+        this.cameras.main.startFollow(this.robotSprite, true, 0.08, 0.08);
       }
 
       drawGrid() {
         const gridSize = 40;
+        const extent = 5000;
         this.gridGraphics.clear();
         this.gridGraphics.lineStyle(1, 0x1c2533, 0.6);
-        for (let x = 0; x <= WIDTH; x += gridSize) {
-          this.gridGraphics.lineBetween(x, 0, x, HEIGHT);
+        for (let x = -extent; x <= extent; x += gridSize) {
+          this.gridGraphics.lineBetween(x, -extent, x, extent);
         }
-        for (let y = 0; y <= HEIGHT; y += gridSize) {
-          this.gridGraphics.lineBetween(0, y, WIDTH, y);
+        for (let y = -extent; y <= extent; y += gridSize) {
+          this.gridGraphics.lineBetween(-extent, y, extent, y);
         }
       }
 
@@ -471,19 +503,20 @@
         const edge = Math.floor(Math.random() * 4);
         let x = 0;
         let y = 0;
-        const margin = 20;
+        const margin = 40;
+        const view = this.cameras.main.worldView;
         if (edge === 0) {
-          x = Math.random() * WIDTH;
-          y = -margin;
+          x = Phaser.Math.Between(view.x, view.x + view.width);
+          y = view.y - margin;
         } else if (edge === 1) {
-          x = WIDTH + margin;
-          y = Math.random() * HEIGHT;
+          x = view.x + view.width + margin;
+          y = Phaser.Math.Between(view.y, view.y + view.height);
         } else if (edge === 2) {
-          x = Math.random() * WIDTH;
-          y = HEIGHT + margin;
+          x = Phaser.Math.Between(view.x, view.x + view.width);
+          y = view.y + view.height + margin;
         } else {
-          x = -margin;
-          y = Math.random() * HEIGHT;
+          x = view.x - margin;
+          y = Phaser.Math.Between(view.y, view.y + view.height);
         }
         this.enemies.push({ x, y, kind });
       }
@@ -525,8 +558,7 @@
 
         this.robot.x += velocity.vx * dt;
         this.robot.y += velocity.vy * dt;
-        this.robot.x = Phaser.Math.Clamp(this.robot.x, 20, WIDTH - 20);
-        this.robot.y = Phaser.Math.Clamp(this.robot.y, 20, HEIGHT - 20);
+        this.robotSprite.setPosition(this.robot.x, this.robot.y);
 
         for (const enemy of this.enemies) {
           const type = ENEMY_TYPES[enemy.kind];
@@ -549,9 +581,6 @@
           this.enemyGraphics.fillStyle(type.color, 1);
           this.enemyGraphics.fillCircle(enemy.x, enemy.y, type.radius);
         }
-
-        this.robotGraphics.fillStyle(0x3fe5ff, 1);
-        this.robotGraphics.fillCircle(this.robot.x, this.robot.y, 18);
 
         if (ctx.nearest) {
           this.robotGraphics.lineStyle(2, 0xffa33a, 0.9);
@@ -589,15 +618,20 @@
 
     function startGame() {
       const mechKey = mechSelect.value;
-      const weaponKey = weaponSelect.value;
+      let weaponPrimaryKey = weaponPrimarySelect.value;
+      let weaponSecondaryKey = weaponSecondarySelect.value;
       const personalityKey = personalitySelect.value;
 
       applyPersonalityPreset(personalityKey);
 
       const mech = MECH_PRESETS[mechKey] || MECH_PRESETS.light;
+      if (weaponPrimaryKey === weaponSecondaryKey) {
+        const alternatives = Object.keys(WEAPON_TYPES).filter((key) => key !== weaponPrimaryKey);
+        weaponSecondaryKey = alternatives[0] || weaponSecondaryKey;
+      }
       const labels = {
         mech: mechKey === "heavy" ? "ヘビー" : "ライト",
-        weapon: weaponKey === "cannon" ? "キャノン" : "ブレード",
+        weapon: `${WEAPON_TYPES[weaponPrimaryKey]} / ${WEAPON_TYPES[weaponSecondaryKey]}`,
         personality: personalityKey === "coward" ? "慎重" : personalityKey === "charger" ? "突撃" : "バランス"
       };
 
