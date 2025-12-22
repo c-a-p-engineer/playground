@@ -26,6 +26,7 @@
       border-radius: 8px;
       z-index: 10;
       font-size: 13px;
+      display: none;
     }
     .slider-row {
       display: flex;
@@ -64,9 +65,92 @@
       font-size: 12px;
       line-height: 1.4;
     }
+    #start {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at top, rgba(25, 35, 55, 0.92), rgba(6, 8, 12, 0.96));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      color: #e6f7ff;
+    }
+    #start .panel {
+      width: 360px;
+      padding: 18px;
+      border-radius: 12px;
+      background: rgba(12, 18, 30, 0.9);
+      border: 1px solid rgba(100, 140, 180, 0.5);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+    }
+    #start h1 {
+      font-size: 18px;
+      margin: 0 0 12px;
+    }
+    .start-row {
+      margin-bottom: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 13px;
+    }
+    .start-row select {
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid rgba(100, 140, 180, 0.5);
+      background: rgba(8, 12, 20, 0.9);
+      color: #e6f7ff;
+    }
+    #start button {
+      width: 100%;
+      margin-top: 6px;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      background: #2b8fd1;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #start .hint {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #9db6c8;
+      line-height: 1.4;
+    }
   </style>
 </head>
 <body>
+  <div id="start">
+    <div class="panel">
+      <h1>Auto Robot Survivors</h1>
+      <div class="start-row">
+        <label for="select_mech">機体</label>
+        <select id="select_mech">
+          <option value="light">ライトフレーム</option>
+          <option value="heavy">ヘビーフレーム</option>
+        </select>
+      </div>
+      <div class="start-row">
+        <label for="select_weapon">武器種</label>
+        <select id="select_weapon">
+          <option value="blade">ブレード</option>
+          <option value="cannon">キャノン</option>
+        </select>
+      </div>
+      <div class="start-row">
+        <label for="select_personality">AI性格</label>
+        <select id="select_personality">
+          <option value="balanced">バランス</option>
+          <option value="coward">慎重</option>
+          <option value="charger">突撃志向</option>
+        </select>
+      </div>
+      <button id="start_button">START</button>
+      <div class="hint">開始後は左上のスライダーで性格を微調整できます。</div>
+    </div>
+  </div>
+
   <div id="ui">
     <div class="slider-row">
       <label for="w_flee">逃げ</label>
@@ -109,6 +193,17 @@
       boss: { speed: 90, radius: 22, color: 0xff4a4a }
     };
 
+    const MECH_PRESETS = {
+      light: { hp: 85, en: 120, speed: 295 },
+      heavy: { hp: 125, en: 90, speed: 230 }
+    };
+
+    const PERSONALITY_PRESETS = {
+      balanced: { flee: 20, far: 20, mid: 50, near: 0, charge: 10 },
+      coward: { flee: 55, far: 25, mid: 15, near: 0, charge: 5 },
+      charger: { flee: 10, far: 10, mid: 30, near: 10, charge: 40 }
+    };
+
     const sliders = ["flee", "far", "mid", "near", "charge"].reduce((acc, key) => {
       acc[key] = {
         input: document.getElementById(`w_${key}`),
@@ -122,6 +217,25 @@
         value.textContent = input.value;
       });
     });
+
+    const startEl = document.getElementById("start");
+    const uiEl = document.getElementById("ui");
+    const startButton = document.getElementById("start_button");
+    const mechSelect = document.getElementById("select_mech");
+    const weaponSelect = document.getElementById("select_weapon");
+    const personalitySelect = document.getElementById("select_personality");
+
+    function applyPersonalityPreset(key) {
+      const preset = PERSONALITY_PRESETS[key] || PERSONALITY_PRESETS.balanced;
+      Object.entries(preset).forEach(([name, value]) => {
+        sliders[name].input.value = value;
+        sliders[name].value.textContent = value;
+      });
+    }
+
+    applyPersonalityPreset(personalitySelect.value);
+
+    let game = null;
 
     class MoveAI {
       constructor() {
@@ -241,7 +355,7 @@
           }
         }
 
-        return { move: bestMove, scores, multipliers, chargeOk };
+        return { move: bestMove, scores, chargeOk };
       }
 
       computeVelocity(robot, ctx, move) {
@@ -300,8 +414,9 @@
     }
 
     class MainScene extends Phaser.Scene {
-      constructor() {
+      constructor(settings) {
         super("main");
+        this.settings = settings;
         this.robot = null;
         this.enemies = [];
         this.spawnTimer = 0;
@@ -321,11 +436,11 @@
         this.robot = {
           x: 360,
           y: 640,
-          hp: 100,
-          maxHp: 100,
-          en: 100,
-          maxEn: 100,
-          speed: 260,
+          hp: this.settings.hp,
+          maxHp: this.settings.hp,
+          en: this.settings.en,
+          maxEn: this.settings.en,
+          speed: this.settings.speed,
           lastHitAtMs: -999999
         };
       }
@@ -465,19 +580,55 @@
           `MOVE: ${reason} ${chargeOk ? "" : "(突撃ゲート無効)"}`,
           scoreLine,
           `hp=${hpRate}% en=${enRate}% density=${ctx.density} nearest=${Number.isFinite(ctx.nearestDist) ? ctx.nearestDist.toFixed(0) : "-"}px`,
-          `enemies=${this.enemies.length} elite=${ctx.hasElite ? "Y" : "N"} boss=${ctx.hasBoss ? "Y" : "N"} hitRecently=${ctx.wasHitRecently ? "Y" : "N"}`
+          `enemies=${this.enemies.length} elite=${ctx.hasElite ? "Y" : "N"} boss=${ctx.hasBoss ? "Y" : "N"} hitRecently=${ctx.wasHitRecently ? "Y" : "N"}`,
+          `loadout=機体:${this.settings.mechaLabel} 武器:${this.settings.weaponLabel} AI:${this.settings.personalityLabel}`
         ];
         this.debugEl.textContent = debugLines.join("\n");
       }
     }
 
-    const game = new Phaser.Game({
-      type: Phaser.AUTO,
-      width: WIDTH,
-      height: HEIGHT,
-      backgroundColor: "#0b0b0f",
-      parent: document.body,
-      scene: [MainScene]
+    function startGame() {
+      const mechKey = mechSelect.value;
+      const weaponKey = weaponSelect.value;
+      const personalityKey = personalitySelect.value;
+
+      applyPersonalityPreset(personalityKey);
+
+      const mech = MECH_PRESETS[mechKey] || MECH_PRESETS.light;
+      const labels = {
+        mech: mechKey === "heavy" ? "ヘビー" : "ライト",
+        weapon: weaponKey === "cannon" ? "キャノン" : "ブレード",
+        personality: personalityKey === "coward" ? "慎重" : personalityKey === "charger" ? "突撃" : "バランス"
+      };
+
+      uiEl.style.display = "block";
+      startEl.style.display = "none";
+
+      const settings = {
+        hp: mech.hp,
+        en: mech.en,
+        speed: mech.speed,
+        mechaLabel: labels.mech,
+        weaponLabel: labels.weapon,
+        personalityLabel: labels.personality
+      };
+
+      if (game) {
+        game.destroy(true);
+      }
+
+      game = new Phaser.Game({
+        type: Phaser.AUTO,
+        width: WIDTH,
+        height: HEIGHT,
+        backgroundColor: "#0b0b0f",
+        parent: document.body,
+        scene: new MainScene(settings)
+      });
+    }
+
+    startButton.addEventListener("click", () => {
+      startGame();
     });
   </script>
 </body>
