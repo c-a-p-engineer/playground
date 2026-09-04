@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Auto Robot Survivors (P0-01 Movement AI)</title>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #0b0b0f;
+      color: #e6f7ff;
+      font-family: "Segoe UI", sans-serif;
+      height: 100%;
+      overflow: hidden;
+    }
+    #ui {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      width: 320px;
+      padding: 12px;
+      background: rgba(10, 15, 25, 0.85);
+      border: 1px solid rgba(90, 120, 150, 0.5);
+      border-radius: 8px;
+      z-index: 10;
+      font-size: 13px;
+      display: none;
+    }
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .slider-row label {
+      width: 54px;
+      white-space: nowrap;
+    }
+    .slider-row input[type="range"] {
+      flex: 1;
+    }
+    .slider-row span {
+      width: 34px;
+      text-align: right;
+      color: #8bd5ff;
+      font-variant-numeric: tabular-nums;
+    }
+    #debug {
+      margin-top: 8px;
+      background: rgba(6, 10, 16, 0.9);
+      border: 1px solid rgba(90, 120, 150, 0.3);
+      border-radius: 6px;
+      padding: 6px;
+      white-space: pre;
+      font-family: "Consolas", monospace;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #c7e6ff;
+    }
+    #note {
+      margin-top: 6px;
+      color: #9db6c8;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    #stats {
+      margin-top: 8px;
+      padding: 8px;
+      background: rgba(8, 12, 20, 0.9);
+      border: 1px solid rgba(90, 120, 150, 0.3);
+      border-radius: 6px;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #c7e6ff;
+    }
+    #stats .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    #stats .label {
+      color: #9db6c8;
+    }
+    #start {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at top, rgba(25, 35, 55, 0.92), rgba(6, 8, 12, 0.96));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      color: #e6f7ff;
+    }
+    #start .panel {
+      width: 360px;
+      padding: 18px;
+      border-radius: 12px;
+      background: rgba(12, 18, 30, 0.9);
+      border: 1px solid rgba(100, 140, 180, 0.5);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+    }
+    #start h1 {
+      font-size: 18px;
+      margin: 0 0 12px;
+    }
+    .start-row {
+      margin-bottom: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 13px;
+    }
+    .start-row select {
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid rgba(100, 140, 180, 0.5);
+      background: rgba(8, 12, 20, 0.9);
+      color: #e6f7ff;
+    }
+    #start button {
+      width: 100%;
+      margin-top: 6px;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      background: #2b8fd1;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #start .hint {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #9db6c8;
+      line-height: 1.4;
+    }
+    #levelup {
+      position: absolute;
+      inset: 0;
+      background: rgba(6, 8, 12, 0.92);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 30;
+      color: #e6f7ff;
+    }
+    #levelup .panel {
+      width: 360px;
+      padding: 18px;
+      border-radius: 12px;
+      background: rgba(12, 18, 30, 0.95);
+      border: 1px solid rgba(100, 140, 180, 0.5);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+    }
+    #levelup h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+    }
+    #levelup .option {
+      width: 100%;
+      margin-bottom: 8px;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(120, 170, 210, 0.5);
+      background: rgba(20, 30, 48, 0.9);
+      color: #e6f7ff;
+      cursor: pointer;
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+  <div id="start">
+    <div class="panel">
+      <h1>Auto Robot Survivors</h1>
+      <div class="start-row">
+        <label for="select_mech">機体</label>
+        <select id="select_mech">
+          <option value="light">ライトフレーム</option>
+          <option value="heavy">ヘビーフレーム</option>
+        </select>
+      </div>
+      <div class="start-row">
+        <label for="select_weapon_primary">武器1</label>
+        <select id="select_weapon_primary">
+          <option value="blade">ブレード</option>
+          <option value="cannon">キャノン</option>
+          <option value="rail">レールガン</option>
+          <option value="pulse">パルス</option>
+          <option value="missile">ミサイル</option>
+        </select>
+      </div>
+      <div class="start-row">
+        <label for="select_weapon_secondary">武器2</label>
+        <select id="select_weapon_secondary">
+          <option value="cannon">キャノン</option>
+          <option value="blade">ブレード</option>
+          <option value="rail">レールガン</option>
+          <option value="pulse">パルス</option>
+          <option value="missile">ミサイル</option>
+        </select>
+      </div>
+      <div class="start-row">
+        <label for="select_personality">AI性格</label>
+        <select id="select_personality">
+          <option value="balanced">バランス</option>
+          <option value="coward">慎重</option>
+          <option value="charger">突撃志向</option>
+        </select>
+      </div>
+      <button id="start_button">START</button>
+      <div class="hint">開始後は左上のスライダーで性格を微調整できます。</div>
+    </div>
+  </div>
+
+  <div id="levelup">
+    <div class="panel">
+      <h2>レベルアップ</h2>
+      <div id="levelup_options"></div>
+      <div class="hint">3つの中から1つを選んでください。</div>
+    </div>
+  </div>
+
+  <div id="ui">
+    <div class="slider-row">
+      <label for="w_flee">逃げ</label>
+      <input id="w_flee" type="range" min="0" max="100" value="20" />
+      <span id="v_flee">20</span>
+    </div>
+    <div class="slider-row">
+      <label for="w_far">遠距離</label>
+      <input id="w_far" type="range" min="0" max="100" value="20" />
+      <span id="v_far">20</span>
+    </div>
+    <div class="slider-row">
+      <label for="w_mid">中距離</label>
+      <input id="w_mid" type="range" min="0" max="100" value="50" />
+      <span id="v_mid">50</span>
+    </div>
+    <div class="slider-row">
+      <label for="w_near">近距離</label>
+      <input id="w_near" type="range" min="0" max="100" value="0" />
+      <span id="v_near">0</span>
+    </div>
+    <div class="slider-row">
+      <label for="w_charge">突撃</label>
+      <input id="w_charge" type="range" min="0" max="100" value="10" />
+      <span id="v_charge">10</span>
+    </div>
+    <div id="note">
+      合計100不要。突撃は安全装置(条件)を満たさないと除外されます。
+    </div>
+    <div id="stats">
+      <div class="row"><span class="label">HP</span><span id="stat_hp">-</span></div>
+      <div class="row"><span class="label">EN</span><span id="stat_en">-</span></div>
+      <div class="row"><span class="label">LV/XP</span><span id="stat_level">-</span></div>
+      <div class="row"><span class="label">Score</span><span id="stat_score">-</span></div>
+      <div class="row"><span class="label">Armor</span><span id="stat_armor">-</span></div>
+      <div class="row"><span class="label">Speed</span><span id="stat_speed">-</span></div>
+      <div class="row"><span class="label">Weapon1</span><span id="stat_weapon1">-</span></div>
+      <div class="row"><span class="label">Weapon2</span><span id="stat_weapon2">-</span></div>
+    </div>
+    <div id="debug">Loading...</div>
+  </div>
+
+  <script>
+    const WIDTH = 720;
+    const HEIGHT = 1280;
+    const ASSET_BASE = "https://raw.githubusercontent.com/kenneyNL/space-shooter-redux/master/PNG/";
+
+    const ASSETS = {
+      robot: `${ASSET_BASE}playerShip1_blue.png`,
+      enemyMob: `${ASSET_BASE}enemyRed1.png`,
+      enemyElite: `${ASSET_BASE}enemyBlack2.png`,
+      enemyBoss: `${ASSET_BASE}enemyGreen4.png`,
+      obstacle: `${ASSET_BASE}meteorBrown_big1.png`,
+      projectileCannon: `${ASSET_BASE}laserRed07.png`,
+      projectileRail: `${ASSET_BASE}laserBlue07.png`,
+      projectilePulse: `${ASSET_BASE}laserGreen07.png`,
+      projectileMissile: `${ASSET_BASE}laserRed08.png`,
+      xpOrb: `${ASSET_BASE}powerupBlue.png`
+    };
+
+    const ENEMY_TYPES = {
+      mob: { speed: 160, radius: 14, hp: 20, score: 100, xp: 10, sprite: "enemyMob" },
+      elite: { speed: 130, radius: 18, hp: 45, score: 300, xp: 25, sprite: "enemyElite" },
+      boss: { speed: 90, radius: 26, hp: 120, score: 1000, xp: 60, sprite: "enemyBoss" }
+    };
+
+    const MECH_PRESETS = {
+      light: { hp: 85, en: 120, speed: 295 },
+      heavy: { hp: 125, en: 90, speed: 230 }
+    };
+
+    const WEAPON_TYPES = {
+      blade: "ブレード",
+      cannon: "キャノン",
+      rail: "レールガン",
+      pulse: "パルス",
+      missile: "ミサイル"
+    };
+
+    const WEAPON_CONFIG = {
+      blade: { type: "melee", baseDamage: 18, cooldownMs: 750, range: 90, blockedByObstacles: true },
+      cannon: { type: "projectile", baseDamage: 22, cooldownMs: 800, speed: 520, blockedByObstacles: true, sprite: "projectileCannon" },
+      rail: { type: "projectile", baseDamage: 16, cooldownMs: 480, speed: 740, blockedByObstacles: false, sprite: "projectileRail" },
+      pulse: { type: "projectile", baseDamage: 12, cooldownMs: 320, speed: 600, blockedByObstacles: true, sprite: "projectilePulse" },
+      missile: { type: "projectile", baseDamage: 28, cooldownMs: 900, speed: 430, blockedByObstacles: false, sprite: "projectileMissile" }
+    };
+
+    const PERSONALITY_PRESETS = {
+      balanced: { flee: 20, far: 20, mid: 50, near: 0, charge: 10 },
+      coward: { flee: 55, far: 25, mid: 15, near: 0, charge: 5 },
+      charger: { flee: 10, far: 10, mid: 30, near: 10, charge: 40 }
+    };
+
+    const sliders = ["flee", "far", "mid", "near", "charge"].reduce((acc, key) => {
+      acc[key] = {
+        input: document.getElementById(`w_${key}`),
+        value: document.getElementById(`v_${key}`)
+      };
+      return acc;
+    }, {});
+
+    Object.values(sliders).forEach(({ input, value }) => {
+      input.addEventListener("input", () => {
+        value.textContent = input.value;
+      });
+    });
+
+    const startEl = document.getElementById("start");
+    const levelupEl = document.getElementById("levelup");
+    const levelupOptionsEl = document.getElementById("levelup_options");
+    const uiEl = document.getElementById("ui");
+    const startButton = document.getElementById("start_button");
+    const mechSelect = document.getElementById("select_mech");
+    const weaponPrimarySelect = document.getElementById("select_weapon_primary");
+    const weaponSecondarySelect = document.getElementById("select_weapon_secondary");
+    const personalitySelect = document.getElementById("select_personality");
+    const statHp = document.getElementById("stat_hp");
+    const statEn = document.getElementById("stat_en");
+    const statLevel = document.getElementById("stat_level");
+    const statScore = document.getElementById("stat_score");
+    const statArmor = document.getElementById("stat_armor");
+    const statSpeed = document.getElementById("stat_speed");
+    const statWeapon1 = document.getElementById("stat_weapon1");
+    const statWeapon2 = document.getElementById("stat_weapon2");
+
+    function applyPersonalityPreset(key) {
+      const preset = PERSONALITY_PRESETS[key] || PERSONALITY_PRESETS.balanced;
+      Object.entries(preset).forEach(([name, value]) => {
+        sliders[name].input.value = value;
+        sliders[name].value.textContent = value;
+      });
+    }
+
+    function getWeaponStats(weaponKey, level) {
+      const config = WEAPON_CONFIG[weaponKey];
+      const damage = Math.round(config.baseDamage * (1 + level * 0.2));
+      const cooldownMs = Math.max(180, Math.round(config.cooldownMs * (1 - level * 0.04)));
+      const speed = config.speed ? Math.round(config.speed * (1 + level * 0.05)) : null;
+      return { ...config, damage, cooldownMs, speed };
+    }
+
+    function pickRandomOptions(pool, count) {
+      const picks = [];
+      const available = [...pool];
+      while (picks.length < count && available.length) {
+        const idx = Math.floor(Math.random() * available.length);
+        picks.push(available.splice(idx, 1)[0]);
+      }
+      return picks;
+    }
+
+    applyPersonalityPreset(personalitySelect.value);
+
+    let game = null;
+
+    class MoveAI {
+      constructor() {
+        this.lastChargeAtMs = -999999;
+      }
+
+      computeContext(robot, enemies, nowMs) {
+        let nearest = null;
+        let nearestDist = Infinity;
+        let density = 0;
+        let hasElite = false;
+        let hasBoss = false;
+        for (const enemy of enemies) {
+          const dx = enemy.x - robot.x;
+          const dy = enemy.y - robot.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < nearestDist) {
+            nearestDist = dist;
+            nearest = enemy;
+          }
+          if (dist <= 220) {
+            density += 1;
+          }
+          if (enemy.kind === "elite") {
+            hasElite = true;
+          }
+          if (enemy.kind === "boss") {
+            hasBoss = true;
+          }
+        }
+
+        const hpRate = robot.hp / robot.maxHp;
+        const enRate = robot.en / robot.maxEn;
+        const wasHitRecently = nowMs - robot.lastHitAtMs <= 700;
+
+        return {
+          hpRate,
+          enRate,
+          nearest,
+          nearestDist,
+          density,
+          hasElite,
+          hasBoss,
+          wasHitRecently
+        };
+      }
+
+      getWeights() {
+        return {
+          flee: Number(sliders.flee.input.value),
+          far: Number(sliders.far.input.value),
+          mid: Number(sliders.mid.input.value),
+          near: Number(sliders.near.input.value),
+          charge: Number(sliders.charge.input.value)
+        };
+      }
+
+      computeMultipliers(ctx) {
+        const multipliers = { flee: 1, far: 1, mid: 1, near: 1, charge: 1 };
+        if (ctx.hpRate < 0.3) {
+          multipliers.flee *= 1.8;
+          multipliers.charge *= 0.2;
+          multipliers.near *= 0.7;
+        }
+        if (ctx.density > 6) {
+          multipliers.flee *= 1.5;
+          multipliers.near *= 0.7;
+          multipliers.charge *= 0.4;
+        }
+        if (ctx.wasHitRecently) {
+          multipliers.flee *= 1.6;
+          multipliers.charge *= 0.6;
+        }
+        if (ctx.enRate > 0.7) {
+          multipliers.charge *= 1.3;
+        }
+        if (ctx.hasBoss) {
+          multipliers.charge *= 1.2;
+          multipliers.far *= 0.9;
+        }
+        return multipliers;
+      }
+
+      chargeAllowed(ctx, nowMs) {
+        return ctx.enRate > 0.6
+          && ctx.density < 4
+          && (ctx.hasBoss || ctx.hasElite)
+          && !ctx.wasHitRecently
+          && (nowMs - this.lastChargeAtMs >= 1800);
+      }
+
+      selectMove(ctx, nowMs) {
+        const weights = this.getWeights();
+        const multipliers = this.computeMultipliers(ctx);
+        const scores = {};
+        const chargeOk = this.chargeAllowed(ctx, nowMs);
+
+        for (const key of Object.keys(weights)) {
+          if (key === "charge" && !chargeOk) {
+            scores[key] = -Infinity;
+          } else {
+            scores[key] = weights[key] * multipliers[key];
+          }
+        }
+
+        const tieOrder = ["mid", "far", "flee", "near", "charge"];
+        let bestMove = tieOrder[0];
+        let bestScore = -Infinity;
+        for (const key of Object.keys(scores)) {
+          if (scores[key] > bestScore) {
+            bestScore = scores[key];
+            bestMove = key;
+          } else if (scores[key] === bestScore) {
+            if (tieOrder.indexOf(key) < tieOrder.indexOf(bestMove)) {
+              bestMove = key;
+            }
+          }
+        }
+
+        return { move: bestMove, scores, chargeOk };
+      }
+
+      computeVelocity(robot, ctx, move) {
+        if (!ctx.nearest) {
+          return { vx: 0, vy: 0 };
+        }
+        const dx = ctx.nearest.x - robot.x;
+        const dy = ctx.nearest.y - robot.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const nx = dx / dist;
+        const ny = dy / dist;
+
+        const bands = { far: 420, mid: 260, near: 140, deadband: 20 };
+        const speed = robot.speed;
+
+        if (move === "flee") {
+          return { vx: -nx * speed, vy: -ny * speed };
+        }
+        if (move === "charge") {
+          return { vx: nx * speed * 1.35, vy: ny * speed * 1.35 };
+        }
+
+        const band = bands[move];
+        if (!band) {
+          return { vx: 0, vy: 0 };
+        }
+        if (dist > band + bands.deadband) {
+          return { vx: nx * speed, vy: ny * speed };
+        }
+        if (dist < band - bands.deadband) {
+          return { vx: -nx * speed, vy: -ny * speed };
+        }
+        return { vx: 0, vy: 0 };
+      }
+
+      formatReason(move, ctx) {
+        const moveLabel = {
+          flee: "逃げ",
+          far: "遠距離",
+          mid: "中距離",
+          near: "近距離",
+          charge: "突撃"
+        }[move];
+
+        const flags = [];
+        if (ctx.hpRate < 0.3) flags.push("HP低");
+        if (ctx.density > 6) flags.push("密集");
+        if (ctx.wasHitRecently) flags.push("被弾直後");
+        if (ctx.enRate > 0.7) flags.push("EN高");
+        if (ctx.hasBoss) flags.push("ボス有");
+        if (ctx.hasElite) flags.push("エリート有");
+
+        const ctxText = flags.length ? flags.join("/") : "-";
+        return `${moveLabel} (${ctxText})`;
+      }
+    }
+
+    class MainScene extends Phaser.Scene {
+      constructor(settings) {
+        super("main");
+        this.settings = settings;
+        this.robot = null;
+        this.enemies = [];
+        this.projectiles = [];
+        this.obstacles = [];
+        this.spawnTimer = 0;
+        this.damageTimer = 0;
+        this.assetStatus = { remoteFailed: false };
+        this.isLevelingUp = false;
+        this.ai = new MoveAI();
+        this.debugEl = document.getElementById("debug");
+      }
+
+      preload() {
+        this.load.on("loaderror", () => {
+          this.assetStatus.remoteFailed = true;
+        });
+        this.load.image("robot", ASSETS.robot);
+        this.load.image("enemyMob", ASSETS.enemyMob);
+        this.load.image("enemyElite", ASSETS.enemyElite);
+        this.load.image("enemyBoss", ASSETS.enemyBoss);
+        this.load.image("obstacle", ASSETS.obstacle);
+        this.load.image("projectileCannon", ASSETS.projectileCannon);
+        this.load.image("projectileRail", ASSETS.projectileRail);
+        this.load.image("projectilePulse", ASSETS.projectilePulse);
+        this.load.image("projectileMissile", ASSETS.projectileMissile);
+        this.load.image("xpOrb", ASSETS.xpOrb);
+      }
+
+      create() {
+        this.gridGraphics = this.add.graphics();
+        this.gridGraphics.setDepth(0);
+        this.drawGrid();
+
+        this.enemyGraphics = this.add.graphics();
+        this.robotGraphics = this.add.graphics();
+
+        this.cameras.main.setBounds(-5000, -5000, 10000, 10000);
+
+        this.robot = {
+          x: 360,
+          y: 640,
+          hp: this.settings.hp,
+          maxHp: this.settings.hp,
+          en: this.settings.en,
+          maxEn: this.settings.en,
+          speed: this.settings.speed,
+          armor: 0,
+          level: 1,
+          xp: 0,
+          xpToNext: 50,
+          score: 0,
+          weaponLoadout: [this.settings.weaponPrimaryKey, this.settings.weaponSecondaryKey],
+          weaponLevels: {
+            blade: 1,
+            cannon: 1,
+            rail: 1,
+            pulse: 1,
+            missile: 1
+          },
+          weaponCooldowns: {},
+          lastHitAtMs: -999999
+        };
+
+        this.useSprites = this.textures.exists("robot") && !this.assetStatus.remoteFailed;
+        if (this.useSprites) {
+          this.robotSprite = this.add.image(this.robot.x, this.robot.y, "robot");
+          this.robotSprite.setDisplaySize(44, 44);
+          this.robotSprite.setDepth(2);
+        } else {
+          this.robotSprite = this.add.circle(this.robot.x, this.robot.y, 18, 0x3fe5ff, 1);
+        }
+        this.cameras.main.startFollow(this.robotSprite, true, 0.08, 0.08);
+
+        this.spawnObstacles();
+        this.updateHud();
+      }
+
+      drawGrid() {
+        const gridSize = 40;
+        const extent = 5000;
+        this.gridGraphics.clear();
+        this.gridGraphics.lineStyle(1, 0x1c2533, 0.6);
+        for (let x = -extent; x <= extent; x += gridSize) {
+          this.gridGraphics.lineBetween(x, -extent, x, extent);
+        }
+        for (let y = -extent; y <= extent; y += gridSize) {
+          this.gridGraphics.lineBetween(-extent, y, extent, y);
+        }
+      }
+
+      spawnObstacles() {
+        const count = 8;
+        for (let i = 0; i < count; i += 1) {
+          const x = Phaser.Math.Between(-800, 800);
+          const y = Phaser.Math.Between(-1200, 1200);
+          const size = Phaser.Math.Between(60, 110);
+          let sprite = null;
+          if (this.useSprites && this.textures.exists("obstacle")) {
+            sprite = this.add.image(x, y, "obstacle");
+            sprite.setDisplaySize(size, size);
+            sprite.setDepth(1);
+          } else {
+            sprite = this.add.rectangle(x, y, size, size, 0x4a3d2c, 1);
+          }
+          this.obstacles.push({ x, y, width: size, height: size, sprite });
+        }
+      }
+
+      spawnEnemy() {
+        if (this.enemies.length >= 55) {
+          return;
+        }
+        const roll = Math.random();
+        let kind = "mob";
+        if (roll < 0.03) {
+          kind = "boss";
+        } else if (roll < 0.12) {
+          kind = "elite";
+        }
+        const edge = Math.floor(Math.random() * 4);
+        let x = 0;
+        let y = 0;
+        const margin = 40;
+        const view = this.cameras.main.worldView;
+        if (edge === 0) {
+          x = Phaser.Math.Between(view.x, view.x + view.width);
+          y = view.y - margin;
+        } else if (edge === 1) {
+          x = view.x + view.width + margin;
+          y = Phaser.Math.Between(view.y, view.y + view.height);
+        } else if (edge === 2) {
+          x = Phaser.Math.Between(view.x, view.x + view.width);
+          y = view.y + view.height + margin;
+        } else {
+          x = view.x - margin;
+          y = Phaser.Math.Between(view.y, view.y + view.height);
+        }
+        const type = ENEMY_TYPES[kind];
+        let sprite = null;
+        if (this.useSprites && this.textures.exists(type.sprite)) {
+          sprite = this.add.image(x, y, type.sprite);
+          sprite.setDisplaySize(type.radius * 2.2, type.radius * 2.2);
+        }
+        this.enemies.push({
+          x,
+          y,
+          kind,
+          hp: type.hp,
+          maxHp: type.hp,
+          radius: type.radius,
+          sprite
+        });
+      }
+
+      update(time, delta) {
+        if (this.isLevelingUp) {
+          return;
+        }
+        const dt = delta / 1000;
+        const nowMs = time;
+
+        this.spawnTimer += delta;
+        if (this.spawnTimer >= 220) {
+          this.spawnTimer -= 220;
+          this.spawnEnemy();
+        }
+
+        this.damageTimer += delta;
+        if (this.damageTimer >= 2600) {
+          this.damageTimer -= 2600;
+          if (Math.random() < 0.35) {
+            this.robot.lastHitAtMs = nowMs;
+            const incoming = Math.max(1, 6 - this.robot.armor);
+            this.robot.hp = Math.max(0, this.robot.hp - incoming);
+          }
+        }
+
+        const ctx = this.ai.computeContext(this.robot, this.enemies, nowMs);
+        const { move, scores, chargeOk } = this.ai.selectMove(ctx, nowMs);
+        const velocity = this.ai.computeVelocity(this.robot, ctx, move);
+
+        if (move === "charge") {
+          this.robot.en = Math.max(0, this.robot.en - 35 * dt);
+          if (this.robot.en <= 0) {
+            this.ai.lastChargeAtMs = nowMs;
+          }
+        } else {
+          this.robot.en = Math.min(this.robot.maxEn, this.robot.en + 18 * dt);
+        }
+        if (move === "charge" && chargeOk) {
+          this.ai.lastChargeAtMs = nowMs;
+        }
+
+        this.robot.x += velocity.vx * dt;
+        this.robot.y += velocity.vy * dt;
+        this.robotSprite.setPosition(this.robot.x, this.robot.y);
+
+        for (const enemy of this.enemies) {
+          const type = ENEMY_TYPES[enemy.kind];
+          const dx = this.robot.x - enemy.x;
+          const dy = this.robot.y - enemy.y;
+          const dist = Math.hypot(dx, dy) || 1;
+          enemy.x += (dx / dist) * type.speed * dt;
+          enemy.y += (dy / dist) * type.speed * dt;
+          if (enemy.sprite) {
+            enemy.sprite.setPosition(enemy.x, enemy.y);
+          }
+        }
+
+        this.handleWeaponFire(ctx, nowMs);
+        this.updateProjectiles(dt);
+        this.renderEntities(ctx, velocity, move, scores, chargeOk);
+        this.updateHud();
+      }
+
+      handleWeaponFire(ctx, nowMs) {
+        if (!ctx.nearest) {
+          return;
+        }
+        const [weaponPrimary, weaponSecondary] = this.robot.weaponLoadout;
+        this.fireWeapon(weaponPrimary, ctx.nearest, nowMs);
+        this.fireWeapon(weaponSecondary, ctx.nearest, nowMs);
+      }
+
+      fireWeapon(weaponKey, target, nowMs) {
+        const level = this.robot.weaponLevels[weaponKey] || 1;
+        const stats = getWeaponStats(weaponKey, level);
+        const cooldownKey = `${weaponKey}`;
+        const nextReady = this.robot.weaponCooldowns[cooldownKey] || 0;
+        if (nowMs < nextReady) {
+          return;
+        }
+        if (stats.type === "melee") {
+          const dist = Math.hypot(target.x - this.robot.x, target.y - this.robot.y);
+          if (dist <= stats.range) {
+            this.applyDamage(target, stats.damage);
+            this.robot.weaponCooldowns[cooldownKey] = nowMs + stats.cooldownMs;
+          }
+          return;
+        }
+        const dx = target.x - this.robot.x;
+        const dy = target.y - this.robot.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const vx = (dx / dist) * stats.speed;
+        const vy = (dy / dist) * stats.speed;
+        let sprite = null;
+        if (this.useSprites && this.textures.exists(stats.sprite)) {
+          sprite = this.add.image(this.robot.x, this.robot.y, stats.sprite);
+          sprite.setDisplaySize(16, 32);
+        }
+        this.projectiles.push({
+          x: this.robot.x,
+          y: this.robot.y,
+          vx,
+          vy,
+          damage: stats.damage,
+          lifeMs: 1400,
+          blockedByObstacles: stats.blockedByObstacles,
+          sprite,
+          radius: 6
+        });
+        this.robot.weaponCooldowns[cooldownKey] = nowMs + stats.cooldownMs;
+      }
+
+      updateProjectiles(dt) {
+        const remaining = [];
+        for (const projectile of this.projectiles) {
+          projectile.x += projectile.vx * dt;
+          projectile.y += projectile.vy * dt;
+          projectile.lifeMs -= dt * 1000;
+          if (projectile.sprite) {
+            projectile.sprite.setPosition(projectile.x, projectile.y);
+          }
+
+          if (projectile.lifeMs <= 0) {
+            if (projectile.sprite) projectile.sprite.destroy();
+            continue;
+          }
+
+          if (projectile.blockedByObstacles) {
+            const blocked = this.obstacles.some((obs) => (
+              Math.abs(projectile.x - obs.x) <= obs.width / 2
+              && Math.abs(projectile.y - obs.y) <= obs.height / 2
+            ));
+            if (blocked) {
+              if (projectile.sprite) projectile.sprite.destroy();
+              continue;
+            }
+          }
+
+          let hit = false;
+          for (const enemy of this.enemies) {
+            const dist = Math.hypot(projectile.x - enemy.x, projectile.y - enemy.y);
+            if (dist <= enemy.radius + projectile.radius) {
+              this.applyDamage(enemy, projectile.damage);
+              hit = true;
+              break;
+            }
+          }
+          if (hit) {
+            if (projectile.sprite) projectile.sprite.destroy();
+            continue;
+          }
+          remaining.push(projectile);
+        }
+        this.projectiles = remaining;
+      }
+
+      applyDamage(enemy, damage) {
+        enemy.hp = Math.max(0, enemy.hp - damage);
+        if (enemy.hp <= 0) {
+          this.onEnemyDefeated(enemy);
+        }
+      }
+
+      onEnemyDefeated(enemy) {
+        const type = ENEMY_TYPES[enemy.kind];
+        this.robot.score += type.score;
+        this.robot.xp += type.xp;
+        if (enemy.sprite) {
+          enemy.sprite.destroy();
+        }
+        this.enemies = this.enemies.filter((item) => item !== enemy);
+        this.checkLevelUp();
+      }
+
+      checkLevelUp() {
+        if (this.robot.xp < this.robot.xpToNext) {
+          return;
+        }
+        this.robot.level += 1;
+        this.robot.xp -= this.robot.xpToNext;
+        this.robot.xpToNext = Math.floor(this.robot.xpToNext * 1.2 + 20);
+        this.showLevelUpOptions();
+      }
+
+      showLevelUpOptions() {
+        this.isLevelingUp = true;
+        const optionsPool = [
+          {
+            id: "weapon_primary",
+            label: `武器1(${WEAPON_TYPES[this.robot.weaponLoadout[0]]}) LV+1`,
+            apply: () => {
+              const key = this.robot.weaponLoadout[0];
+              this.robot.weaponLevels[key] += 1;
+            }
+          },
+          {
+            id: "weapon_secondary",
+            label: `武器2(${WEAPON_TYPES[this.robot.weaponLoadout[1]]}) LV+1`,
+            apply: () => {
+              const key = this.robot.weaponLoadout[1];
+              this.robot.weaponLevels[key] += 1;
+            }
+          },
+          {
+            id: "heal",
+            label: "回復 +30%",
+            apply: () => {
+              this.robot.hp = Math.min(this.robot.maxHp, this.robot.hp + Math.round(this.robot.maxHp * 0.3));
+            }
+          },
+          {
+            id: "armor",
+            label: "装甲 +1",
+            apply: () => {
+              this.robot.armor += 1;
+            }
+          },
+          {
+            id: "maxhp",
+            label: "最大HP +12",
+            apply: () => {
+              this.robot.maxHp += 12;
+              this.robot.hp += 12;
+            }
+          },
+          {
+            id: "speed",
+            label: "移動速度 +18",
+            apply: () => {
+              this.robot.speed += 18;
+            }
+          }
+        ];
+        const picks = pickRandomOptions(optionsPool, 3);
+        levelupOptionsEl.innerHTML = "";
+        picks.forEach((option) => {
+          const button = document.createElement("button");
+          button.className = "option";
+          button.textContent = option.label;
+          button.addEventListener("click", () => {
+            option.apply();
+            this.isLevelingUp = false;
+            levelupEl.style.display = "none";
+            this.updateHud();
+          });
+          levelupOptionsEl.appendChild(button);
+        });
+        levelupEl.style.display = "flex";
+      }
+
+      updateHud() {
+        const hpRate = Math.round((this.robot.hp / this.robot.maxHp) * 100);
+        const enRate = Math.round((this.robot.en / this.robot.maxEn) * 100);
+        const weaponPrimary = this.robot.weaponLoadout[0];
+        const weaponSecondary = this.robot.weaponLoadout[1];
+        const primaryStats = getWeaponStats(weaponPrimary, this.robot.weaponLevels[weaponPrimary]);
+        const secondaryStats = getWeaponStats(weaponSecondary, this.robot.weaponLevels[weaponSecondary]);
+        statHp.textContent = `${this.robot.hp}/${this.robot.maxHp} (${hpRate}%)`;
+        statEn.textContent = `${this.robot.en.toFixed(0)}/${this.robot.maxEn} (${enRate}%)`;
+        statLevel.textContent = `Lv${this.robot.level} (${this.robot.xp}/${this.robot.xpToNext})`;
+        statScore.textContent = `${this.robot.score}`;
+        statArmor.textContent = `${this.robot.armor}`;
+        statSpeed.textContent = `${Math.round(this.robot.speed)} px/s`;
+        statWeapon1.textContent = `${WEAPON_TYPES[weaponPrimary]} Lv${this.robot.weaponLevels[weaponPrimary]} (ATK ${primaryStats.damage})`;
+        statWeapon2.textContent = `${WEAPON_TYPES[weaponSecondary]} Lv${this.robot.weaponLevels[weaponSecondary]} (ATK ${secondaryStats.damage})`;
+      }
+
+      renderEntities(ctx, velocity, move, scores, chargeOk) {
+        this.enemyGraphics.clear();
+        this.robotGraphics.clear();
+
+        if (!this.useSprites) {
+          for (const enemy of this.enemies) {
+            this.enemyGraphics.fillStyle(0xffffff, 1);
+            this.enemyGraphics.fillCircle(enemy.x, enemy.y, enemy.radius);
+          }
+          for (const projectile of this.projectiles) {
+            this.enemyGraphics.fillStyle(0xffd56a, 1);
+            this.enemyGraphics.fillCircle(projectile.x, projectile.y, 4);
+          }
+          this.robotGraphics.fillStyle(0x3fe5ff, 1);
+          this.robotGraphics.fillCircle(this.robot.x, this.robot.y, 18);
+        }
+
+        if (ctx.nearest) {
+          this.robotGraphics.lineStyle(2, 0xffa33a, 0.9);
+          this.robotGraphics.lineBetween(this.robot.x, this.robot.y, ctx.nearest.x, ctx.nearest.y);
+        }
+
+        const dirLen = 42;
+        const speedMag = Math.hypot(velocity.vx, velocity.vy);
+        if (speedMag > 1) {
+          const nx = velocity.vx / speedMag;
+          const ny = velocity.vy / speedMag;
+          this.robotGraphics.lineStyle(2, 0x3fe5ff, 0.9);
+          this.robotGraphics.lineBetween(
+            this.robot.x,
+            this.robot.y,
+            this.robot.x + nx * dirLen,
+            this.robot.y + ny * dirLen
+          );
+        }
+
+        const reason = this.ai.formatReason(move, ctx);
+        const hpRate = Math.round(ctx.hpRate * 100);
+        const enRate = Math.round(ctx.enRate * 100);
+        const scoreLine = `score flee=${scores.flee.toFixed(1)} far=${scores.far.toFixed(1)} mid=${scores.mid.toFixed(1)} near=${scores.near.toFixed(1)} charge=${scores.charge === -Infinity ? "X" : scores.charge.toFixed(1)}`;
+        const debugLines = [
+          `MOVE: ${reason} ${chargeOk ? "" : "(突撃ゲート無効)"}`,
+          scoreLine,
+          `hp=${hpRate}% en=${enRate}% density=${ctx.density} nearest=${Number.isFinite(ctx.nearestDist) ? ctx.nearestDist.toFixed(0) : "-"}px`,
+          `enemies=${this.enemies.length} elite=${ctx.hasElite ? "Y" : "N"} boss=${ctx.hasBoss ? "Y" : "N"} hitRecently=${ctx.wasHitRecently ? "Y" : "N"}`,
+          `loadout=機体:${this.settings.mechaLabel} 武器:${this.settings.weaponLabel} AI:${this.settings.personalityLabel}`
+        ];
+        this.debugEl.textContent = debugLines.join("\n");
+      }
+    }
+
+    function startGame() {
+      const mechKey = mechSelect.value;
+      let weaponPrimaryKey = weaponPrimarySelect.value;
+      let weaponSecondaryKey = weaponSecondarySelect.value;
+      const personalityKey = personalitySelect.value;
+
+      applyPersonalityPreset(personalityKey);
+
+      const mech = MECH_PRESETS[mechKey] || MECH_PRESETS.light;
+      if (weaponPrimaryKey === weaponSecondaryKey) {
+        const alternatives = Object.keys(WEAPON_TYPES).filter((key) => key !== weaponPrimaryKey);
+        weaponSecondaryKey = alternatives[0] || weaponSecondaryKey;
+      }
+      const labels = {
+        mech: mechKey === "heavy" ? "ヘビー" : "ライト",
+        weapon: `${WEAPON_TYPES[weaponPrimaryKey]} / ${WEAPON_TYPES[weaponSecondaryKey]}`,
+        personality: personalityKey === "coward" ? "慎重" : personalityKey === "charger" ? "突撃" : "バランス"
+      };
+
+      uiEl.style.display = "block";
+      startEl.style.display = "none";
+      levelupEl.style.display = "none";
+
+      const settings = {
+        hp: mech.hp,
+        en: mech.en,
+        speed: mech.speed,
+        mechaLabel: labels.mech,
+        weaponLabel: labels.weapon,
+        personalityLabel: labels.personality,
+        weaponPrimaryKey,
+        weaponSecondaryKey
+      };
+
+      if (game) {
+        game.destroy(true);
+      }
+
+      game = new Phaser.Game({
+        type: Phaser.AUTO,
+        width: WIDTH,
+        height: HEIGHT,
+        backgroundColor: "#0b0b0f",
+        parent: document.body,
+        scene: new MainScene(settings)
+      });
+    }
+
+    startButton.addEventListener("click", () => {
+      startGame();
+    });
+  </script>
+</body>
+</html>
